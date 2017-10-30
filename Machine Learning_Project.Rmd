@@ -1,0 +1,88 @@
+---
+title: "Machine_Learning_Project"
+author: "Dheeraj"
+date: "October 29, 2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r}
+library(caret)
+## Loading required package: lattice
+## Loading required package: ggplot2
+library(ggplot2)
+library(randomForest)
+```
+
+1. Loading the Data
+```{r}
+train <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!",""))
+test <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+summary(train$classe)
+```
+
+2. Splitting the  Data
+Splitting the data into training and testing sets
+```{r}
+Data_Split <- createDataPartition(y=train$classe, p=0.6, list=FALSE)
+Train_data <- train[Data_Split, ]
+Test_data <- train[-Data_Split, ]
+dim(Train_data)
+```
+3. Feature Selection
+Now we can tranform the data to only include the variables we will need to build our model. We will remove variables with near zero variance, variables with mostly missing data, and variables that are obviously not useful as predictors.
+```{r}
+mytrain_SUB <- Train_data 
+for (i in 1:length(Train_data)) {
+  if (sum(is.na(Train_data[ , i])) / nrow(Train_data) >= .75) {
+    for (j in 1:length(mytrain_SUB)) {
+      if (length(grep(names(Train_data[i]), names(mytrain_SUB)[j]))==1) {
+        mytrain_SUB <- mytrain_SUB[ , -j]
+      }
+    }
+  }
+}
+
+dim(mytrain_SUB)
+```
+```{r}
+#names(mytrain_SUB)
+
+#remove columns that are obviously not predictors
+mytrain_SUB2 <- mytrain_SUB[,8:length(mytrain_SUB)]
+
+#remove variables with near zero variance
+NZV <- nearZeroVar(mytrain_SUB2, saveMetrics = TRUE)
+NZV #all false, none to remove
+keep <- names(mytrain_SUB2)
+```
+4. Random Forest Model
+I decided to use the random forest model to build my machine learning algorithm as it is appropriate for a classification problem as we have and based on information provided in class lectures this model tends to be more accurate than some other classification models.
+
+Below I fit my model on my training data and then use my model to predict classe on my subset of data used for cross validation.
+```{r}
+set.seed(223)
+
+modFit <- randomForest(classe~., data = mytrain_SUB2)
+print(modFit)
+predict1 <- predict(modFit, Test_data, type = "class")
+confusionMatrix(Test_data$classe, predict1)
+predict_train <- predict(modFit, Train_data, type = "class")
+confusionMatrix(Train_data$classe, predict_train)
+```
+5. Apply to final test set
+```{r}
+predict_FINAL <- predict(modFit, test, type = "class")
+print(predict_FINAL)
+pml_write_files = function(x) {
+  n = length(x)
+  for (i in 1:n) {
+    filename = paste0("problem_id_", i, ".txt")
+    write.table(x[i], file=filename, quote=FALSE,row.names=FALSE, col.names=FALSE)
+  }
+}
+
+pml_write_files(predict_FINAL)
+
+```
